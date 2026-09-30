@@ -1,0 +1,117 @@
+name: Kafka vs Kafgres Benchmark
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: Benchmark mode
+        required: true
+        default: smoke
+        type: choice
+        options:
+          - smoke
+          - baseline
+  release:
+    types: [published]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: benchmark-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  benchmark:
+    name: Benchmark ${{ matrix.system }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        system: [kafka, kafgres]
+
+    steps:
+      - name: Checkout benchmark
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install benchmark dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Prepare Kafgres
+        if: matrix.system == 'kafgres'
+        run: ./scripts/setup.sh
+
+      - name: Run smoke benchmark
+        if: github.event_name != 'release' && inputs.mode == 'smoke'
+        run: ./scripts/run.sh smoke ${{ matrix.system }}
+
+      - name: Run baseline benchmark
+        if: github.event_name != 'release' && inputs.mode == 'baseline'
+        run: ./scripts/run.sh baseline ${{ matrix.system }}
+
+      - name: Run release benchmark
+        if: github.event_name == 'release'
+        run: ./scripts/run.sh baseline ${{ matrix.system }}
+
+      - name: Capture runner metadata
+        run: |
+          mkdir -p results/${{ matrix.system }}
+          echo "system=${{ matrix.system }}" > results/${{ matrix.system }}/runner.txt
+          echo "github_sha=${{ github.sha }}" >> results/${{ matrix.system }}/runner.txt
+          echo "github_ref=${{ github.ref }}" >> results/${{ matrix.system }}/runner.txt
+          echo "runner_os=${{ runner.os }}" >> results/${{ matrix.system }}/runner.txt
+          echo "runner_arch=${{ runner.arch }}" >> results/${{ matrix.system }}/runner.txt
+          echo "timestamp_utc=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> results/${{ matrix.system }}/runner.txt
+          uname -a >> results/${{ matrix.system }}/runner.txt
+          nproc >> results/${{ matrix.system }}/runner.txt
+          free -h >> results/${{ matrix.system }}/runner.txt
+          df -h >> results/${{ matrix.system }}/runner.txt
+
+      - name: Stop broker
+        if: always()
+        run: ./scripts/stop.sh ${{ matrix.system }} || true
+
+      - name: Upload benchmark artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: benchmark-${{ matrix.system }}-${{ github.run_id }}
+          path: results/${{ matrix.system }}/
+          if-no-files-found: error
+          retention-days: 90
+
+  publish-release:
+    name: Publish benchmark results
+    if: github.event_name == 'release'
+    needs: benchmark
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Download Kafka results
+        uses: actions/download-artifact@v4
+        with:
+          pattern: benchmark-kafka-*
+          path: release-results/kafka
+          merge-multiple: true
+
+      - name: Download Kafgres results
+        uses: actions/download-artifact@v4
+        with:
+          pattern: benchmark-kafgres-*
+          path: release-results/kafgres
+          merge-multiple: true
+
+      - name: Create release bundle
+        run: tar -czf kafka-vs-kafgres-${{ github.event.release.tag_name }}.tar.gz -C release-results kafka kafgres
+
+      - name: Upload results to release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.event.release.tag_name }}
+        run: gh release upload "$TAG" "kafka-vs-kafgres-$TAG.tar.gz" --clobber
