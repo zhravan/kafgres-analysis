@@ -42,7 +42,7 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
       - name: Prepare Kafgres
-        run: ./scripts/setup.sh
+        run: bash ./scripts/setup.sh
       - name: Run Kafka
         run: |
           MODE="${{ github.event_name == 'release' && 'baseline' || inputs.mode }}"
@@ -82,8 +82,8 @@ jobs:
       - name: Stop brokers
         if: always()
         run: |
-          ./scripts/stop.sh kafka || true
-          ./scripts/stop.sh kafgres || true
+          bash ./scripts/stop.sh kafka || true
+          bash ./scripts/stop.sh kafgres || true
 
   publish-release:
     name: Publish benchmark results
