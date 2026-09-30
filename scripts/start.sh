@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "\${BASH_SOURCE[0]}")/.." && pwd)"
-SYSTEM="\${1:?usage: start.sh kafka|kafgres}"
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+SYSTEM="${1:?usage: start.sh kafka|kafgres}"
 
 case "$SYSTEM" in
   kafka) docker compose -f "$ROOT/docker-compose.kafka.yml" up -d ;;
