@@ -1,6 +1,9 @@
 name: Kafka vs Kafgres Benchmark
 
 on:
+  push:
+    branches:
+      - main
   workflow_dispatch:
     inputs:
       mode:
@@ -72,7 +75,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: kafka-vs-kafgres-${{ github.run_id }}
+          name: kafka-vs-kafgres-${{ github.sha }}
           path: results/
           if-no-files-found: error
           retention-days: 90
