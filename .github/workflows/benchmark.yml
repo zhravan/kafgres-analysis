@@ -46,18 +46,18 @@ jobs:
       - name: Run Kafka
         run: |
           if [ "${{ github.event_name }}" = "release" ] || [ "${{ github.event_name }}" = "push" ]; then
-  MODE=baseline
-else
-  MODE="${{ inputs.mode }}"
-fi
+            MODE=baseline
+          else
+            MODE="${{ inputs.mode }}"
+          fi
           ./scripts/run.sh "$MODE" kafka
       - name: Run Kafgres
         run: |
           if [ "${{ github.event_name }}" = "release" ] || [ "${{ github.event_name }}" = "push" ]; then
-  MODE=baseline
-else
-  MODE="${{ inputs.mode }}"
-fi
+            MODE=baseline
+          else
+            MODE="${{ inputs.mode }}"
+          fi
           ./scripts/run.sh "$MODE" kafgres
       - name: Capture runner metadata
         if: always()
@@ -102,7 +102,7 @@ fi
       - name: Download benchmark artifact
         uses: actions/download-artifact@v4
         with:
-          name: kafka-vs-kafgres-${{ github.run_id }}
+          name: kafka-vs-kafgres-${{ github.sha }}
           path: release-results
       - name: Create release bundle
         run: tar -czf "kafka-vs-kafgres-${{ github.event.release.tag_name }}.tar.gz" -C release-results .
