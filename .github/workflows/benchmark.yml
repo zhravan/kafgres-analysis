@@ -45,11 +45,19 @@ jobs:
         run: bash ./scripts/setup.sh
       - name: Run Kafka
         run: |
-          MODE="${{ github.event_name == 'release' && 'baseline' || inputs.mode }}"
+          if [ "${{ github.event_name }}" = "release" ] || [ "${{ github.event_name }}" = "push" ]; then
+  MODE=baseline
+else
+  MODE="${{ inputs.mode }}"
+fi
           ./scripts/run.sh "$MODE" kafka
       - name: Run Kafgres
         run: |
-          MODE="${{ github.event_name == 'release' && 'baseline' || inputs.mode }}"
+          if [ "${{ github.event_name }}" = "release" ] || [ "${{ github.event_name }}" = "push" ]; then
+  MODE=baseline
+else
+  MODE="${{ inputs.mode }}"
+fi
           ./scripts/run.sh "$MODE" kafgres
       - name: Capture runner metadata
         if: always()
