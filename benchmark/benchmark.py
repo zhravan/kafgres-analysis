@@ -91,7 +91,7 @@ def main():
         nonlocal consumed
         conf={"bootstrap.servers":a.bootstrap,"group.id":consumer_group,
               "auto.offset.reset":"earliest","enable.auto.commit":False,
-              "fetch.min.bytes":1,"fetch.max.wait.ms":10,"max.partition.fetch.bytes":1048576,
+              "fetch.min.bytes":1,"fetch.wait.max.ms":10,"max.partition.fetch.bytes":1048576,
               "client.id":f"bench-{a.system}-c{idx}"}
         c=Consumer(conf); c.subscribe([topic])
         idle=0
