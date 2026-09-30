@@ -2,7 +2,7 @@
 import argparse, json, os, re, struct, subprocess, threading, time, uuid
 from pathlib import Path
 from statistics import quantiles
-from confluent_kafka import Producer, Consumer, KafkaException
+from confluent_kafka import Producer, Consumer, KafkaError
 from confluent_kafka.admin import AdminClient, NewTopic
 
 def bytes_value(s):
@@ -55,7 +55,7 @@ def main():
 
     produced=consumed=0
     delivery_errors=[]; latency=[]; lock=threading.Lock()
-    measurement_start=0; measurement_end=0; stop_producers=threading.Event()
+    measurement_start=0; measurement_end=0; stop_producers=threading.Event(); measure_start_event=threading.Event()\n    consumer_group=f"bench-{uuid.uuid4().hex}"
     stop_consumers=threading.Event()
 
     def delivery(err,msg):
@@ -79,7 +79,7 @@ def main():
             payload=struct.pack(">QQ",time.time_ns(),seq)+b"x"*max(0,a.message_size-16); seq+=1
             try: prod.produce(topic,value=payload,on_delivery=delivery); prod.poll(0)
             except BufferError: prod.poll(0.01)
-        while not stop_producers.is_set():
+        measure_start_event.wait()\n        while not stop_producers.is_set():
             payload=struct.pack(">QQ",time.time_ns(),seq)+b"x"*max(0,a.message_size-16); seq+=1
             try: prod.produce(topic,value=payload,on_delivery=delivery); prod.poll(0)
             except BufferError: prod.poll(0.01)
@@ -87,7 +87,7 @@ def main():
 
     def consumer_worker(idx):
         nonlocal consumed
-        conf={"bootstrap.servers":a.bootstrap,"group.id":f"bench-{uuid.uuid4().hex}",
+        conf={"bootstrap.servers":a.bootstrap,"group.id":consumer_group,
               "auto.offset.reset":"earliest","enable.auto.commit":False,
               "fetch.min.bytes":1,"fetch.max.wait.ms":10,"max.partition.fetch.bytes":1048576,
               "client.id":f"bench-{a.system}-c{idx}"}
@@ -98,7 +98,7 @@ def main():
             if msg is None: idle+=1; continue
             idle=0
             if msg.error(): 
-                if msg.error().code() == KafkaException._PARTITION_EOF: continue
+                if msg.error().code() == KafkaError._PARTITION_EOF: continue
                 continue
             try: sent=struct.unpack(">Q",msg.value()[:8])[0]
             except Exception: continue
@@ -111,10 +111,12 @@ def main():
     consumers=[threading.Thread(target=consumer_worker,args=(i,),daemon=True) for i in range(a.consumers)]
     for t in consumers: t.start()
     time.sleep(2)
-    measurement_start=time.time_ns()
-    measurement_end=measurement_start+int(a.duration*1e9)
     producers=[threading.Thread(target=producer_worker,args=(i,),daemon=True) for i in range(a.producers)]
     for t in producers: t.start()
+    time.sleep(a.warmup)
+    measurement_start=time.time_ns()
+    measurement_end=measurement_start+int(a.duration*1e9)
+    measure_start_event.set()
     time.sleep(a.duration)
     stop_producers.set()
     for t in producers: t.join(timeout=60)
