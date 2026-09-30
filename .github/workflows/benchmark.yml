@@ -11,6 +11,7 @@ on:
         options:
           - smoke
           - baseline
+          - full
   release:
     types: [published]
 
@@ -23,95 +24,80 @@ concurrency:
 
 jobs:
   benchmark:
-    name: Benchmark ${{ matrix.system }}
+    name: Sequential benchmark
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        system: [kafka, kafgres]
-
+    timeout-minutes: 120
     steps:
       - name: Checkout benchmark
         uses: actions/checkout@v4
-
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-
       - name: Install benchmark dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-
       - name: Prepare Kafgres
-        if: matrix.system == 'kafgres'
         run: ./scripts/setup.sh
-
-      - name: Run smoke benchmark
-        if: github.event_name != 'release' && inputs.mode == 'smoke'
-        run: ./scripts/run.sh smoke ${{ matrix.system }}
-
-      - name: Run baseline benchmark
-        if: github.event_name != 'release' && inputs.mode == 'baseline'
-        run: ./scripts/run.sh baseline ${{ matrix.system }}
-
-      - name: Run release benchmark
-        if: github.event_name == 'release'
-        run: ./scripts/run.sh baseline ${{ matrix.system }}
-
-      - name: Capture runner metadata
+      - name: Run Kafka
         run: |
-          mkdir -p results/${{ matrix.system }}
-          echo "system=${{ matrix.system }}" > results/${{ matrix.system }}/runner.txt
-          echo "github_sha=${{ github.sha }}" >> results/${{ matrix.system }}/runner.txt
-          echo "github_ref=${{ github.ref }}" >> results/${{ matrix.system }}/runner.txt
-          echo "runner_os=${{ runner.os }}" >> results/${{ matrix.system }}/runner.txt
-          echo "runner_arch=${{ runner.arch }}" >> results/${{ matrix.system }}/runner.txt
-          echo "timestamp_utc=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> results/${{ matrix.system }}/runner.txt
-          uname -a >> results/${{ matrix.system }}/runner.txt
-          nproc >> results/${{ matrix.system }}/runner.txt
-          free -h >> results/${{ matrix.system }}/runner.txt
-          df -h >> results/${{ matrix.system }}/runner.txt
-
-      - name: Stop broker
+          MODE="${{ github.event_name == 'release' && 'baseline' || inputs.mode }}"
+          ./scripts/run.sh "$MODE" kafka
+      - name: Run Kafgres
+        run: |
+          MODE="${{ github.event_name == 'release' && 'baseline' || inputs.mode }}"
+          ./scripts/run.sh "$MODE" kafgres
+      - name: Capture runner metadata
         if: always()
-        run: ./scripts/stop.sh ${{ matrix.system }} || true
-
+        run: |
+          mkdir -p results
+          echo "github_sha=${{ github.sha }}" > results/runner.txt
+          echo "github_ref=${{ github.ref }}" >> results/runner.txt
+          echo "runner_os=${{ runner.os }}" >> results/runner.txt
+          echo "runner_arch=${{ runner.arch }}" >> results/runner.txt
+          echo "timestamp_utc=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> results/runner.txt
+          uname -a >> results/runner.txt
+          nproc >> results/runner.txt
+          free -h >> results/runner.txt
+          df -h >> results/runner.txt
+      - name: Generate comparison report
+        if: always()
+        run: python benchmark/report.py --results results --output results/summary.md
+      - name: Add report to job summary
+        if: always()
+        run: |
+          if [ -f results/summary.md ]; then cat results/summary.md >> "$GITHUB_STEP_SUMMARY"; fi
       - name: Upload benchmark artifact
+        if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: benchmark-${{ matrix.system }}-${{ github.run_id }}
-          path: results/${{ matrix.system }}/
+          name: kafka-vs-kafgres-${{ github.run_id }}
+          path: results/
           if-no-files-found: error
           retention-days: 90
+      - name: Stop brokers
+        if: always()
+        run: |
+          ./scripts/stop.sh kafka || true
+          ./scripts/stop.sh kafgres || true
 
   publish-release:
     name: Publish benchmark results
     if: github.event_name == 'release'
     needs: benchmark
     runs-on: ubuntu-latest
-
     steps:
-      - name: Download Kafka results
+      - name: Download benchmark artifact
         uses: actions/download-artifact@v4
         with:
-          pattern: benchmark-kafka-*
-          path: release-results/kafka
-          merge-multiple: true
-
-      - name: Download Kafgres results
-        uses: actions/download-artifact@v4
-        with:
-          pattern: benchmark-kafgres-*
-          path: release-results/kafgres
-          merge-multiple: true
-
+          name: kafka-vs-kafgres-${{ github.run_id }}
+          path: release-results
       - name: Create release bundle
-        run: tar -czf kafka-vs-kafgres-${{ github.event.release.tag_name }}.tar.gz -C release-results kafka kafgres
-
-      - name: Upload results to release
+        run: tar -czf "kafka-vs-kafgres-${{ github.event.release.tag_name }}.tar.gz" -C release-results .
+      - name: Upload bundle and report
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ github.event.release.tag_name }}
-        run: gh release upload "$TAG" "kafka-vs-kafgres-$TAG.tar.gz" --clobber
+        run: |
+          gh release upload "$TAG" "kafka-vs-kafgres-$TAG.tar.gz" "release-results/summary.md" --clobber
