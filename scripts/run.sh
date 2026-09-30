@@ -24,6 +24,8 @@ if [ "$MODE" = "smoke" ]; then
   python benchmark/benchmark.py --bootstrap "$BOOTSTRAP" --system "$SYSTEM" --output "$OUT/smoke.json" --message-size 1024 --partitions 3 --producers 1 --consumers 1 --duration 10 --warmup 3 --container "$CONTAINER"
 elif [ "$MODE" = "baseline" ]; then
   python benchmark/matrix.py --bootstrap "$BOOTSTRAP" --system "$SYSTEM" --output-dir "$OUT" --profile ci --duration 20 --warmup 5 --repetitions 3 --container "$CONTAINER"
+elif [ "$MODE" = "full" ]; then
+  python benchmark/matrix.py --bootstrap "$BOOTSTRAP" --system "$SYSTEM" --output-dir "$OUT" --profile full --duration 20 --warmup 5 --repetitions 3 --container "$CONTAINER"
 else
   echo "unknown mode: $MODE" >&2; exit 2
 fi
