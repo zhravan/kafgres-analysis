@@ -50,7 +50,7 @@ jobs:
           else
             MODE="${{ inputs.mode }}"
           fi
-          ./scripts/run.sh "$MODE" kafka
+          bash ./scripts/run.sh "$MODE" kafka
       - name: Run Kafgres
         run: |
           if [ "${{ github.event_name }}" = "release" ] || [ "${{ github.event_name }}" = "push" ]; then
@@ -58,7 +58,7 @@ jobs:
           else
             MODE="${{ inputs.mode }}"
           fi
-          ./scripts/run.sh "$MODE" kafgres
+          bash ./scripts/run.sh "$MODE" kafgres
       - name: Capture runner metadata
         if: always()
         run: |
