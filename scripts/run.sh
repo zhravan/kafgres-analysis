@@ -6,8 +6,8 @@ SYSTEM="${2:?usage: run.sh smoke|baseline kafka|kafgres}"
 BOOTSTRAP="127.0.0.1:9292"
 OUT="$ROOT/results/$SYSTEM"
 mkdir -p "$OUT"
-"$ROOT/scripts/start.sh" "$SYSTEM"
-trap '"$ROOT/scripts/stop.sh" "$SYSTEM" || true' EXIT
+bash "$ROOT/scripts/start.sh" "$SYSTEM"
+trap 'bash "$ROOT/scripts/stop.sh" "$SYSTEM" || true' EXIT
 if [ "$SYSTEM" = "kafka" ]; then
   COMPOSE="$ROOT/docker-compose.kafka.yml"; SERVICE="kafka"
 else
