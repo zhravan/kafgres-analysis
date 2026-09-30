@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "\${BASH_SOURCE[0]}")/.." && pwd)"
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 KAFGRES_DIR="$ROOT/.vendor/kafgres"
-KAFGRES_REF="\${KAFGRES_REF:-00168534b8899300896b5ca1582a6ecca3de81d1}"
+KAFGRES_REF="${KAFGRES_REF:-00168534b8899300896b5ca1582a6ecca3de81d1}"
 
 mkdir -p "$ROOT/.vendor"
 if [[ ! -d "$KAFGRES_DIR/.git" ]]; then
