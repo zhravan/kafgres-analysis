@@ -55,7 +55,8 @@ def main():
 
     produced=consumed=0
     delivery_errors=[]; latency=[]; lock=threading.Lock()
-    measurement_start=0; measurement_end=0; stop_producers=threading.Event(); measure_start_event=threading.Event()\n    consumer_group=f"bench-{uuid.uuid4().hex}"
+    measurement_start=0; measurement_end=0; stop_producers=threading.Event(); measure_start_event=threading.Event()
+    consumer_group=f"bench-{uuid.uuid4().hex}"
     stop_consumers=threading.Event()
 
     def delivery(err,msg):
@@ -79,7 +80,8 @@ def main():
             payload=struct.pack(">QQ",time.time_ns(),seq)+b"x"*max(0,a.message_size-16); seq+=1
             try: prod.produce(topic,value=payload,on_delivery=delivery); prod.poll(0)
             except BufferError: prod.poll(0.01)
-        measure_start_event.wait()\n        while not stop_producers.is_set():
+        measure_start_event.wait()
+        while not stop_producers.is_set():
             payload=struct.pack(">QQ",time.time_ns(),seq)+b"x"*max(0,a.message_size-16); seq+=1
             try: prod.produce(topic,value=payload,on_delivery=delivery); prod.poll(0)
             except BufferError: prod.poll(0.01)
